@@ -221,7 +221,7 @@ typedef struct dos_statistic {
 	rte_atomic64_t *reserve[2];
 } dos_statistic;
 
-/* arrary contatining the dos stat structs for each core,
+/* array contatining the dos stat structs for each core,
  * once for the current period and once for the previous */
 struct dos_statistic dos_stats[RTE_MAX_LCORE];
 struct dos_statistic previous_dos_stat[RTE_MAX_LCORE];
@@ -230,7 +230,7 @@ struct dos_statistic previous_dos_stat[RTE_MAX_LCORE];
 static struct rte_eth_conf port_conf = {
 	.rxmode = {
 		.mq_mode = ETH_MQ_RX_RSS,
-		.max_rx_pkt_len = RTE_ETHER_MAX_LEN, /* max packet lenght capped to ETHERNET MTU */
+		.max_rx_pkt_len = RTE_ETHER_MAX_LEN, /* max packet length capped to ETHERNET MTU */
 		.split_hdr_size = 0,
 	},
 	.rx_adv_conf = {
@@ -352,7 +352,7 @@ static struct lf_config config;
 uint64_t tsc_hz; /* only for cycle counting */
 static uint64_t slice_timer_period = 1800; /* #seconds for each bucket, scaled to hertz */
 static uint64_t slice_timer_period_seconds = 1800; /* #seconds for each bucket, unscaled, seconds */
-static uint64_t dos_slice_period; /* lenght of a rate limit slice (100 micro seconds) */
+static uint64_t dos_slice_period; /* length of a rate limit slice (100 micro seconds) */
 
 /* number of packets that the host wants to receive maximally. 0 if no limit
  * limit is number of packets per second
@@ -971,7 +971,7 @@ static int handle_outbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_h
 		RTE_ASSERT(sizeof lf_hdr->encaps_pkt_len <= UINT16_MAX);
 		if (unlikely((uint16_t)(sizeof lf_hdr->encaps_pkt_len) > UINT16_MAX - ipv4_total_length0)) {
 			// #if LOG_PACKETS
-			printf("[%d] Not yet implemented: LF packet too big to encapsualte.\n", lcore_id);
+			printf("[%d] Not yet implemented: LF packet too big to encapsulate.\n", lcore_id);
 			// #endif
 			return -1;
 		}
@@ -1971,7 +1971,7 @@ static void key_manager_main_loop(void) {
 
 /*
  * this function initialises the rate-limiter and defines the initial buckets.
- * As described in the "LighningFilter" thesis we use a modified version of token bucket
+ * As described in the "LightningFilter" thesis we use a modified version of token bucket
  *
  * The code contains some boilerplate because we have to calculate rate limits both system-wide
  * and per-AS, for SecX and normal SCION traffic. Moreover, to avoid data races, we calculate the
@@ -1983,7 +1983,7 @@ static void init_dos(void) {
 	dos_statistic *dos_stat;
 	dos_counter *counter;
 
-	// reserve counters (have to be atomic becasue they are shared among all lcores)
+	// reserve counters (have to be atomic because they are shared among all lcores)
 	rte_atomic64_t *reserve_all_even = malloc(sizeof *reserve_all_even);
 	rte_atomic64_t *reserve_all_odd = malloc(sizeof *reserve_all_odd);
 
@@ -1991,7 +1991,7 @@ static void init_dos(void) {
 	current_pool[0] = 0;
 	current_pool[1] = 0;
 
-	// for each core initalize:
+	// for each core initialize:
 	for (int core_id = 0; core_id < RTE_MAX_LCORE; core_id++) {
 		if (is_in_use[core_id] == false) {
 			continue;
@@ -2003,7 +2003,7 @@ static void init_dos(void) {
 		previous_dos_stat[core_id].sc_dos_packet_count[0] = 0;
 		previous_dos_stat[core_id].sc_dos_packet_count[1] = 0;
 
-		// initalize the dictionaries
+		// initialize the dictionaries
 		dos_stat = &dos_stats[core_id];
 		dictionary_flow *dict_odd = dic_new_flow(initial_size);
 		dictionary_flow *dict_even = dic_new_flow(initial_size);
@@ -2101,7 +2101,7 @@ static void dos_main_loop(void) {
 
 	dos_stat = dos_stats[rte_lcore_id()];
 	dos_slice_period = rte_get_timer_hz() / 10000; // 100 micro-seconds
-	state = EVEN; // inital rate-limiter state: EVEN -> initial processing core state: ODD
+	state = EVEN; // initial rate-limiter state: EVEN -> initial processing core state: ODD
 
 	/* main loop */
 	while (!force_quit) {
@@ -2181,7 +2181,7 @@ static void dos_main_loop(void) {
 			secX_count = secX_count * (1.0 - RESERVE_FRACTION);
 			sc_count = sc_count * (1.0 - RESERVE_FRACTION);
 
-			// store how many tokens were allocated globaly
+			// store how many tokens were allocated globally
 			rte_atomic64_set((dos_stat.reserve[state]), reserve_count);
 			dos_stat.secX_dos_packet_count[state] = secX_count;
 			dos_stat.sc_dos_packet_count[state] = sc_count;
@@ -2612,7 +2612,7 @@ static int scionfwd_parse_args(int argc, char **argv) {
 
 /*
  * Initialize the memory pools used by all processing cores
- * If numa is on we initalize two pools, one per socket.
+ * If numa is on we initialize two pools, one per socket.
  * Otherwise we use only one pool
  * ! This currentyl works only on a machine with max two sockets !
  */
@@ -3292,7 +3292,7 @@ int main(int argc, char **argv) {
 	tsc_hz = rte_get_tsc_hz();
 #endif
 
-	// initalize the blooms filters
+	// initialize the blooms filters
 	printf("\nInitializing Bloom filters ...\n");
 	for (int i = 0; i < RTE_MAX_LCORE; i++) {
 		for (int j = 0; j < MAX_BLOOM_FILTERS; j++) {
