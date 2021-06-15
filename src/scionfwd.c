@@ -145,6 +145,10 @@ static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 #define IP_PROTO_ID_UDP 0x11
 #define IPV4_VERSION 0x4
 
+// Cryptography related constants
+#define BLOCK_SIZE 16
+#define IV_SIZE 16
+
 /**
  * LF Header
  */
@@ -521,10 +525,11 @@ static struct delegation_secret *get_delegation_secret(struct key_store_node *n,
 	return ds;
 }
 
-static void compute_lf_chksum(const unsigned lcore_id, unsigned char drkey[16], rte_be32_t src_addr,
-	rte_be32_t dst_addr, void *data, size_t data_len, unsigned char chksum[16],
-	unsigned char rkey_buf[10 * 16], unsigned char addr_buf[32]) {
-	RTE_ASSERT(data_len % 16 == 0);
+static void compute_lf_chksum(const unsigned lcore_id, unsigned char drkey[BLOCK_SIZE], rte_be32_t src_addr,
+	rte_be32_t dst_addr, void *data, size_t data_len, unsigned char chksum[BLOCK_SIZE],
+	unsigned char rkey_buf[10 * BLOCK_SIZE], unsigned char addr_buf[32]) {
+
+	RTE_ASSERT(data_len % BLOCK_SIZE == 0);
 	RTE_ASSERT(data_len <= INT_MAX);
 	(void)memset(addr_buf, 0, 32);
 	(void)rte_memcpy(addr_buf, &src_addr, sizeof src_addr);
@@ -533,22 +538,26 @@ static void compute_lf_chksum(const unsigned lcore_id, unsigned char drkey[16], 
 #if defined __x86_64__ && __x86_64__
 	(void)lcore_id;
 
-	memset(rkey_buf, 0, 10 * 16);
-	ExpandKey128(drkey, rkey_buf);
-	CBCMAC(rkey_buf, 32 / 16, addr_buf, chksum);
-	memset(rkey_buf, 0, 10 * 16);
-	ExpandKey128(chksum, rkey_buf);
-	CBCMAC(rkey_buf, data_len / 16, data, chksum);
+	// derive the second-order key based on the first order key
+	(void)memset(rkey_buf, 0, 10 * BLOCK_SIZE);
+	(void)ExpandKey128(drkey, rkey_buf);
+	(void)CBCMAC(rkey_buf, 32 / BLOCK_SIZE, addr_buf, chksum);
+
+	// compute per-packet MAC using the second-order key
+	(void)memset(rkey_buf, 0, 10 * BLOCK_SIZE);
+	(void)ExpandKey128(chksum, rkey_buf);
+	(void)CBCMAC(rkey_buf, data_len / BLOCK_SIZE, data, chksum);
 #else
 	(void)rkey_buf;
 
 	int r, n;
-	unsigned char key[16], iv[16];
+	unsigned char key[BLOCK_SIZE], iv[IV_SIZE];
 
 	EVP_CIPHER_CTX *ctx = cipher_ctx[lcore_id];
 
-	(void)rte_memcpy(key, drkey, 16);
-	(void)memset(iv, 0, 16);
+	// derive the second-order key based on the first order key
+	(void)rte_memcpy(key, drkey, BLOCK_SIZE);
+	(void)memset(iv, 0, IV_SIZE);
 	r = EVP_CIPHER_CTX_reset(ctx);
 	RTE_ASSERT(r == 1);
 	r = EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv);
@@ -560,8 +569,9 @@ static void compute_lf_chksum(const unsigned lcore_id, unsigned char drkey[16], 
 	r = EVP_EncryptFinal_ex(ctx, &chksum[n], &n);
 	RTE_ASSERT((r == 1) && (n == 0));
 
-	(void)rte_memcpy(key, chksum, 16);
-	(void)memset(iv, 0, 16);
+	// compute per-packet MAC using the second-order key
+	(void)rte_memcpy(key, chksum, BLOCK_SIZE);
+	(void)memset(iv, 0, IV_SIZE);
 	r = EVP_CIPHER_CTX_reset(ctx);
 	RTE_ASSERT(r == 1);
 	r = EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, key, iv);
@@ -680,13 +690,13 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 #endif
 
 			uint16_t encaps_trl_len = (16 - (sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len) % 16) % 16;
-
 			if (encaps_trl_len != 0) {
 				char *p = rte_pktmbuf_append(m, encaps_trl_len);
 				RTE_ASSERT(p == (char *)(lf_hdr + 1) + encaps_pkt_len);
 				(void)memset(p, 0, encaps_trl_len);
 			}
 			unsigned char *chksum = computed_cmac[lcore_id];
+
 			struct timeval tv_now;
 			int r = gettimeofday(&tv_now, NULL);
 			if (unlikely(r != 0)) {
@@ -698,6 +708,7 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 			}
 			RTE_ASSERT((INT64_MIN <= tv_now.tv_sec) && (tv_now.tv_sec <= INT64_MAX));
 			int64_t t_now = tv_now.tv_sec;
+
 			struct key_dictionary *d = key_dictionaries[lcore_id];
 			key_dictionary_find(d, lf_hdr->src_ia);
 			struct key_store_node *n = d->value;
@@ -719,6 +730,7 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 			dump_hex(lcore_id, ds->key, 16);
 			printf("[%d] }\n", lcore_id);
 #endif
+
 			compute_lf_chksum(lcore_id,
 				/* drkey: */ ds->key,
 				/* src_addr: */ ipv4_hdr_src_addr0,
@@ -729,8 +741,10 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 				/* rkey_buf: */ roundkey[lcore_id],
 				/* addr_buf: */ key_hosts_addrs[lcore_id]);
 			bool is_chksum_valid = crypto_cmp_16(lf_hdr->encaps_pkt_chksum, chksum) == 0;
+
 			if (unlikely(
 						!is_chksum_valid && (ds->validity_not_after - t_now < max_key_validity_extension))) {
+				// the current delegation secret has expired -> try again with the next delegation secret
 				ds = &n->key_store->delegation_secrets[NEXT_KEY_INDEX(n->key_index)];
 				if (ds->validity_not_before < ds->validity_not_after) {
 #if LOG_PACKETS
@@ -752,6 +766,7 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 			}
 			if (unlikely(
 						!is_chksum_valid && (t_now - ds->validity_not_before < max_key_validity_extension))) {
+				// the current delegation secret is not valid yet -> try again with the previous delegation secret
 				ds = &n->key_store->delegation_secrets[PREV_KEY_INDEX(n->key_index)];
 				if (ds->validity_not_before < ds->validity_not_after) {
 #if LOG_PACKETS
