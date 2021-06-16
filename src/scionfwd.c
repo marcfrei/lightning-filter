@@ -707,10 +707,7 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 			}
 #endif
 
-<<<<<<< HEAD
-=======
 			// compute trailer length such that we get a multiple of 16 as data input size
->>>>>>> 150bebe (minor)
 			uint16_t encaps_trl_len = (16 - (sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len) % 16) % 16;
 			if (encaps_trl_len != 0) {
 				char *p = rte_pktmbuf_append(m, encaps_trl_len);
@@ -1202,6 +1199,8 @@ static void scionfwd_simple_forward(
 
 	int r;
 #if UNIDIRECTIONAL_SETUP
+	(void)is_backend;
+	(void)handle_outbound_pkt;
 	r = handle_inbound_pkt(m, ether_hdr0, ipv4_hdr0, lcore_id, lvars, state);
 #else
 	if (is_backend(ipv4_hdr0->dst_addr)) {
@@ -2348,7 +2347,7 @@ static void dos_main_loop(void) {
 }
 
 static int load_config(const char *path) {
-	lf_config_release(&config);	
+	lf_config_release(&config);
 	int r = lf_config_load(&config, path);
 	if (r != 0) {
 		RTE_ASSERT(r == -1);
