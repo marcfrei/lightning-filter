@@ -99,6 +99,10 @@
 #define LOG_PACKETS 0
 #define CHECK_PACKET_STRUCTURE 1
 
+// deployment
+#define UNIDIRECTIONAL_SETUP 1
+#define AWS_DEPLOYMENT 0
+
 // logging
 #define RTE_LOGTYPE_scionfwd RTE_LOGTYPE_USER1
 
@@ -240,6 +244,7 @@ static struct rte_eth_conf port_conf = {
 	.rx_adv_conf = {
 		.rss_conf = { /* configuration according to NIC capability */
 			.rss_key = NULL,
+#if AWS_DEPLOYMENT
 			.rss_hf = ETH_RSS_IPV4
 				| ETH_RSS_FRAG_IPV4
 				| ETH_RSS_NONFRAG_IPV4_TCP
@@ -255,6 +260,19 @@ static struct rte_eth_conf port_conf = {
 				| ETH_RSS_IPV6_EX
 				| ETH_RSS_IPV6_TCP_EX
 				| ETH_RSS_IPV6_UDP_EX
+#else
+			.rss_hf = ETH_RSS_FRAG_IPV4
+				| ETH_RSS_NONFRAG_IPV4_TCP
+				| ETH_RSS_NONFRAG_IPV4_UDP
+				| ETH_RSS_NONFRAG_IPV4_SCTP
+				| ETH_RSS_NONFRAG_IPV4_OTHER
+				| ETH_RSS_FRAG_IPV6
+				| ETH_RSS_NONFRAG_IPV6_TCP
+				| ETH_RSS_NONFRAG_IPV6_UDP
+				| ETH_RSS_NONFRAG_IPV6_SCTP
+				| ETH_RSS_NONFRAG_IPV6_OTHER
+				| ETH_RSS_L2_PAYLOAD
+#endif
 		},
 	},
 	.txmode = {
@@ -1177,6 +1195,9 @@ static void scionfwd_simple_forward(
 	ipv4_hdr0 = (struct rte_ipv4_hdr *)(ether_hdr0 + 1);
 
 	int r;
+#if UNIDIRECTIONAL_SETUP
+	r = handle_inbound_pkt(m, ether_hdr0, ipv4_hdr0, lcore_id, lvars, state);
+#else
 	if (is_backend(ipv4_hdr0->dst_addr)) {
 		r = handle_inbound_pkt(m, ether_hdr0, ipv4_hdr0, lcore_id, lvars, state);
 	} else if (is_backend(ipv4_hdr0->src_addr)) {
@@ -1184,6 +1205,7 @@ static void scionfwd_simple_forward(
 	} else {
 		goto drop_pkt;
 	}
+#endif
 	if (r != 0) {
 		RTE_ASSERT(r == -1);
 		goto drop_pkt;
