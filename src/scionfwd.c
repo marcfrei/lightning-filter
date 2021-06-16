@@ -97,7 +97,7 @@
 #define ENFORCE_LF_RATE_LIMIT_FILTER 1
 #define LOG_DELEGATION_SECRETS 0
 #define LOG_PACKETS 0
-#define CHECK_PACKET_STRUCTURE 1
+#define CHECK_PACKET_STRUCTURE 0
 
 // deployment
 #define UNIDIRECTIONAL_SETUP 1
@@ -707,6 +707,10 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 			}
 #endif
 
+<<<<<<< HEAD
+=======
+			// compute trailer length such that we get a multiple of 16 as data input size
+>>>>>>> 150bebe (minor)
 			uint16_t encaps_trl_len = (16 - (sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len) % 16) % 16;
 			if (encaps_trl_len != 0) {
 				char *p = rte_pktmbuf_append(m, encaps_trl_len);
@@ -960,7 +964,9 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 		}
 	}
 
+#if !UNIDIRECTIONAL_SETUP
 	swap_eth_addrs(m);
+#endif
 
 #if LOG_PACKETS
 	printf("[%d] Forwarding incoming packet:\n", lcore_id);
