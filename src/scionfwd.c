@@ -91,6 +91,7 @@
 
 #define SIMPLE_FORWARD 0
 
+#define USE_PLD_HASH 1
 #define ENABLE_KEY_MANAGEMENT 0
 #define ENABLE_MEASUREMENTS 0
 #define ENFORCE_DUPLICATE_FILTER 0
@@ -162,6 +163,9 @@ struct lf_hdr {
 	uint64_t src_ia;
 	uint8_t encaps_pkt_chksum[16];
 	uint16_t encaps_pkt_len;
+#if USE_PLD_HASH 1
+	uint8_t pld_hash[28]; // e.g., SHA224
+#endif
 } __attribute__((__packed__));
 
 /* MAIN DATA STRUCTS */
@@ -708,13 +712,19 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 #endif
 
 			// compute trailer length such that we get a multiple of 16 as data input size
+#if USE_PLD_HASH
+			uint16_t encaps_trl_len = (16 - (sizeof lf_hdr->encaps_pkt_len + sizeof lf_hdr->pld_hash) % 16) % 16;
+
+			// TODO: for debugging. remove.
+			RTE_ASSERT(encaps_trl_len == 2);
+#else
 			uint16_t encaps_trl_len = (16 - (sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len) % 16) % 16;
+#endif
 			if (encaps_trl_len != 0) {
 				char *p = rte_pktmbuf_append(m, encaps_trl_len);
 				RTE_ASSERT(p == (char *)(lf_hdr + 1) + encaps_pkt_len);
 				(void)memset(p, 0, encaps_trl_len);
 			}
-			unsigned char *chksum = computed_cmac[lcore_id];
 
 			struct timeval tv_now;
 			int r = gettimeofday(&tv_now, NULL);
@@ -750,12 +760,18 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 			printf("[%d] }\n", lcore_id);
 #endif
 
+			unsigned char *chksum = computed_cmac[lcore_id];
+#if USE_PLD_HASH
+			size_t data_len = sizeof lf_hdr->encaps_pkt_len + sizeof lf_hdr->pld_hash + encaps_trl_len;
+#else
+			size_t data_len = sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len + encaps_trl_len;
+#endif
 			compute_lf_chksum(lcore_id,
 				/* drkey: */ ds->key,
 				/* src_addr: */ ipv4_hdr_src_addr0,
 				/* dst_addr: */ backend_public_addr(ipv4_hdr_dst_addr0),
 				/* data: */ &lf_hdr->encaps_pkt_len,
-				/* data_len: */ sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len + encaps_trl_len,
+				/* data_len: */ data_len,
 				/* chksum: */ chksum,
 				/* rkey_buf: */ roundkey[lcore_id],
 				/* addr_buf: */ key_hosts_addrs[lcore_id]);
@@ -776,7 +792,7 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 						/* src_addr: */ ipv4_hdr_src_addr0,
 						/* dst_addr: */ backend_public_addr(ipv4_hdr_dst_addr0),
 						/* data: */ &lf_hdr->encaps_pkt_len,
-						/* data_len: */ sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len + encaps_trl_len,
+						/* data_len: */ sizeof data_len,
 						/* chksum: */ chksum,
 						/* rkey_buf: */ roundkey[lcore_id],
 						/* addr_buf: */ key_hosts_addrs[lcore_id]);
@@ -798,7 +814,7 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 						/* src_addr: */ ipv4_hdr_src_addr0,
 						/* dst_addr: */ backend_public_addr(ipv4_hdr_dst_addr0),
 						/* data: */ &lf_hdr->encaps_pkt_len,
-						/* data_len: */ sizeof lf_hdr->encaps_pkt_len + encaps_pkt_len + encaps_trl_len,
+						/* data_len: */ data_len,
 						/* chksum: */ chksum,
 						/* rkey_buf: */ roundkey[lcore_id],
 						/* addr_buf: */ key_hosts_addrs[lcore_id]);
