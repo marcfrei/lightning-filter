@@ -54,6 +54,21 @@ static int bloom_check_add(
 	//}
 
 	int hits = 0;
+<<<<<<< HEAD
+=======
+	register unsigned int x;
+	register int i;
+
+#if USE_SIPHASH
+	uint8_t key[16], out[4];
+	// TODO: replace with a secure key
+	for (i = 0; i < 16; ++i)
+        key[i] = i;
+
+	(void)halfsiphash(buffer, (const size_t)len, key, out, 4);
+	x = out[0] | (out[1] << 8) | (out[2] << 16) | (out[3] << 24); // convert array to uint32_t
+#else
+>>>>>>> 1ba9de0 (fix compile)
 	register unsigned int a = murmurhash(buffer, len, 0x9747b28c);
 	register unsigned int b = murmurhash(buffer, len, a);
 	register unsigned int x;
@@ -84,7 +99,11 @@ static int bloom_check_add(
 		hits = 0;
 		cur_bloom = &bloomlist[k];
 		for (i = 0; i < cur_bloom->hashes; i++) {
+#if USE_SIPHASH
+			x = (i * x) % cur_bloom->bits;
+#else
 			x = (a + i * b) % cur_bloom->bits;
+#endif
 			if (test_bit_set_bit(cur_bloom->bf, x, 0)) {
 				hits++;
 			} else {

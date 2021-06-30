@@ -2,7 +2,7 @@ UNAME_M = $(shell uname -m)
 
 APP = scionfwd
 
-SRCS-y := hashdict_flow.c json_reader.c json_reader_utils.c key_dictionary.c lf_config.c murmurhash.c scion_bloom.c scionfwd.c
+SRCS-y := hashdict_flow.c json_reader.c json_reader_utils.c key_dictionary.c lf_config.c murmurhash.c scion_bloom.c scionfwd.c halfsiphash.c
 
 include $(RTE_SDK)/mk/rte.vars.mk
 
