@@ -163,7 +163,7 @@ struct lf_hdr {
 	uint64_t src_ia;
 	uint8_t encaps_pkt_chksum[16];
 	uint16_t encaps_pkt_len;
-#if USE_PLD_HASH 1
+#if USE_PLD_HASH
 	uint8_t pld_hash[28]; // e.g., SHA224
 #endif
 } __attribute__((__packed__));
