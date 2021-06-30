@@ -756,8 +756,8 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 			}
 #if LOG_PACKETS
 			printf("[%d] DRKey for %0lx at %ld: {\n", lcore_id, lf_hdr->src_ia, t_now);
-			dump_hex(lcore_id, ds->key, 16);
-			printf("[%d] }\n", lcore_id);
+			//dump_hex(lcore_id, ds->key, 16);
+			//printf("[%d] }\n", lcore_id);
 #endif
 
 			unsigned char *chksum = computed_cmac[lcore_id];
@@ -784,8 +784,8 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 				if (ds->validity_not_before < ds->validity_not_after) {
 #if LOG_PACKETS
 					printf("[%d] DRKey for %0lx at %ld: {\n", lcore_id, lf_hdr->src_ia, t_now);
-					dump_hex(lcore_id, ds->key, 16);
-					printf("[%d] }\n", lcore_id);
+					//dump_hex(lcore_id, ds->key, 16);
+					//printf("[%d] }\n", lcore_id);
 #endif
 					compute_lf_chksum(lcore_id,
 						/* drkey: */ ds->key,
@@ -806,8 +806,8 @@ static int handle_inbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_hd
 				if (ds->validity_not_before < ds->validity_not_after) {
 #if LOG_PACKETS
 					printf("[%d] DRKey for %0lx at %ld: {\n", lcore_id, lf_hdr->src_ia, t_now);
-					dump_hex(lcore_id, ds->key, 16);
-					printf("[%d] }\n", lcore_id);
+					//dump_hex(lcore_id, ds->key, 16);
+					//printf("[%d] }\n", lcore_id);
 #endif
 					compute_lf_chksum(lcore_id,
 						/* drkey: */ ds->key,
@@ -1115,8 +1115,8 @@ static int handle_outbound_pkt(struct rte_mbuf *m, struct rte_ether_hdr *ether_h
 		}
 #if LOG_PACKETS
 		printf("[%d] DRKey for %0lx at %ld: {\n", lcore_id, src_ia, t_now);
-		dump_hex(lcore_id, ds->key, 16);
-		printf("[%d] }\n", lcore_id);
+		//dump_hex(lcore_id, ds->key, 16);
+		//printf("[%d] }\n", lcore_id);
 #endif
 		compute_lf_chksum(lcore_id,
 			/* drkey: */ ds->key,
