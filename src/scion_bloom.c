@@ -19,8 +19,14 @@
 
 #include <rte_cycles.h>
 
-#include "murmurhash.h"
 #include "scion_bloom.h"
+
+#define USE_SIPHASH 1
+#if USE_SIPHASH
+	#include "halfsiphash.h"
+#else
+	#include "murmurhash.h"
+#endif
 
 int sc_bloom_add(struct bloom *bloom, int bloom_size, int active_id, const void *buffer, int len);
 
@@ -54,8 +60,6 @@ static int bloom_check_add(
 	//}
 
 	int hits = 0;
-<<<<<<< HEAD
-=======
 	register unsigned int x;
 	register int i;
 
@@ -68,16 +72,21 @@ static int bloom_check_add(
 	(void)halfsiphash(buffer, (const size_t)len, key, out, 4);
 	x = out[0] | (out[1] << 8) | (out[2] << 16) | (out[3] << 24); // convert array to uint32_t
 #else
->>>>>>> 1ba9de0 (fix compile)
 	register unsigned int a = murmurhash(buffer, len, 0x9747b28c);
 	register unsigned int b = murmurhash(buffer, len, a);
-	register unsigned int x;
-	register int i;
+
+	a = murmurhash(buffer, len, 0x9747b28c);
+	b = murmurhash(buffer, len, a);
+#endif
 
 	struct bloom *active_bloom = &bloomlist[active_id];
 	// check and add to active hash
 	for (i = 0; i < active_bloom->hashes; i++) {
+#if USE_SIPHASH
+		x = (i * x) % active_bloom->bits;
+#else
 		x = (a + i * b) % active_bloom->bits;
+#endif
 		if (test_bit_set_bit(active_bloom->bf, x, 1)) {
 			hits++;
 		}
